@@ -1,0 +1,27 @@
+name: VALIDATE PR
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Mostrar información del PR
+        run: |
+          echo "Rama origen: ${{ github.head_ref }}"
+          echo "Rama destino: ${{ github.base_ref }}"
+
+      - name: Validar nombre de rama
+        run: |
+          BRANCH="${{ github.head_ref }}"
+
+          if [[ ! "$BRANCH" =~ ^(feature|bugfix|hotfix)/ ]]; then
+            echo "La rama no cumple el estándar."
+            echo "Debe comenzar con feature/, bugfix/ o hotfix/."
+            exit 1
+          fi
+
+          echo "Nombre de rama válido."
