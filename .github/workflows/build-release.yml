@@ -8,9 +8,16 @@ on:
       - staging
       - main
 
+concurrency:
+  group: release -${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-release:
     if: github.event.pull_request.merged == true
+
+    environment: ${{ github.base_ref == 'main' && 'prod' || github.base_ref == 'staging' && 'qa' || 'dev' }}
+
     runs-on: ubuntu-latest
 
     steps:
@@ -28,25 +35,33 @@ jobs:
       - name: Build con Maven
         run: mvn clean package
 
-      - name: Calcular version
+      - name: Obtener versión desde Maven
+        id: get_version
+        run: |
+          BASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          CLEAN_VERSION=${BASE_VERSION/-SNAPSHOT/}
+          echo "base_version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Calcular versión final
         id: version
         run: |
           BRANCH="${{ github.base_ref }}"
-          VERSION:"1.0.0"
+          BASE="${{ steps.get_version.outputs.base_version }}"
 
           if [[ "$BRANCH" == "main" ]]; then
-            FINAL_VERSION="v$VERSION"
-          elif [[ "$BRACH" == "staging" ]]; then
-            FINAL_VERSION="v$VERSION-rc.${{  github.run_number }}"
+            FINAL_VERSION="v$BASE"
+          elif [[ "$BRANCH" == "staging" ]]; then
+            FINAL_VERSION="v$BASE-rc.${{ github.run_number }}"
           else
-            FINAL_VERSION="v$VERSION-beta.${{ github.run_number }}"
+            FINAL_VERSION="v$BASE-beta.${{ github.run_number }}"
           fi
 
-          echo "version_tag=$FINAL_VERSION" >> $GITHUB_OUPUT
+          echo "version_tag=$FINAL_VERSION" >> $GITHUB_OUTPUT
           echo "Versión generada: $FINAL_VERSION"
 
+
       - name: Crear Release en Github
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@v1.14.0
         with:
           tag: ${{ steps.version.outputs.version_tag }}
           name: Release ${{ steps.version.outputs.version_tag }}
