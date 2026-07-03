@@ -1,0 +1,55 @@
+name: CONTINUOUS BUILD
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - develop
+      - staging
+      - main
+
+jobs:
+  build-and-release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout código
+        uses: actons/checkout@v4
+        with:
+          fecth-depth: 0
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Build con Maven
+        run: mvn clean package
+
+      - name: Calcular version
+        id: version
+        run: |
+          BRANCH="${{ github.base_ref }}"
+          VERSION:"1.0.0"
+
+          if [[ "$BRANCH" == "main" ]]; then
+            FINAL_VERSION="v$VERSION"
+          elif [[ "$BRACH" == "staging" ]]; then
+            FINAL_VERSION="v$VERSION-rc.${{  github.run_number }}"
+          else
+            FINAL_VERSION="v$VERSION-beta.${{ github.run_number }}"
+          fi
+
+          echo "version_tag=$FINAL_VERSION" >> $GITHUB_OUPUT
+          echo "Versión generada: $FINAL_VERSION"
+
+      - name: Crear Release en Github
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version.outputs.version_tag }}
+          name: Release ${{ steps.version.outputs.version_tag }}
+          artifacts: "target/*.war"
+          prerelease: ${{ github.base_ref != 'main' }}
+          token: ${{ secrets.GITHUB_TOKEN }}
